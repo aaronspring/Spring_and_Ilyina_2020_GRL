@@ -1,0 +1,15 @@
+\begin{tabular}{lrrrr}
+\toprule
+{} &  Lon &  Lat &  PH RMSE &  PH ACC \\
+\midrule
+Alert            &   82 &  -62 &        0 &       3 \\
+Point Barrow     &   71 & -156 &        0 &       3 \\
+La Jolla         &   32 & -117 &        4 &       3 \\
+Mauna Loa        &   19 & -155 &        4 &       3 \\
+Christmas Island &    2 & -157 &        3 &       6 \\
+American Samoa   &  -14 & -170 &        3 &       3 \\
+Kermadec Islands &  -29 & -177 &        3 &       3 \\
+Baring Head      &  -41 &  174 &        3 &       3 \\
+South Pole       &  -89 &  -24 &        3 &       3 \\
+\bottomrule
+\end{tabular}
