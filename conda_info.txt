@@ -1,0 +1,28 @@
+
+     active environment : xr
+    active env location : /Users/aaron.spring/anaconda3/envs/xr
+            shell level : 2
+       user config file : /Users/aaron.spring/.condarc
+ populated config files : /Users/aaron.spring/.condarc
+          conda version : 4.6.14
+    conda-build version : 3.17.8
+         python version : 3.7.3.final.0
+       base environment : /Users/aaron.spring/anaconda3  (writable)
+           channel URLs : https://conda.anaconda.org/conda-forge/osx-64
+                          https://conda.anaconda.org/conda-forge/noarch
+                          https://repo.anaconda.com/pkgs/main/osx-64
+                          https://repo.anaconda.com/pkgs/main/noarch
+                          https://repo.anaconda.com/pkgs/free/osx-64
+                          https://repo.anaconda.com/pkgs/free/noarch
+                          https://repo.anaconda.com/pkgs/r/osx-64
+                          https://repo.anaconda.com/pkgs/r/noarch
+          package cache : /Users/aaron.spring/anaconda3/pkgs
+                          /Users/aaron.spring/.conda/pkgs
+       envs directories : /Users/aaron.spring/anaconda3/envs
+                          /Users/aaron.spring/.conda/envs
+               platform : osx-64
+             user-agent : conda/4.6.14 requests/2.21.0 CPython/3.7.3 Darwin/18.6.0 OSX/10.14.5
+                UID:GID : 501:20
+             netrc file : None
+           offline mode : False
+
