@@ -2,17 +2,17 @@ import glob
 import warnings
 from copy import copy
 
-import geopandas
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
 from climpred.bootstrap import bootstrap_perfect_model
-from PMMPIESM.plot import _plot_co2_stations, my_plot
 
+import geopandas
 from basics import (_get_path, comply_climpred, data_path, labels, longname,
                     path_paper, post_global, shortname, units)
+from PMMPIESM.plot import _plot_co2_stations, my_plot
 
 warnings.filterwarnings("ignore")
 %matplotlib inline
@@ -24,7 +24,6 @@ mpl.rcParams['legend.fontsize'] = 'smaller'
 labelsize = 14
 
 save_nc = False
-# compute
 
 v = 'co2_flux'
 control = xr.open_dataset(_get_path(v, prefix='control'))
@@ -34,12 +33,10 @@ ds = xr.open_dataset(_get_path(v, prefix='ds'))
 ds, control = comply_climpred(ds, control)
 
 comparison = 'm2e'
-sig = 99
 psig = (100 - sig) / 100
 bootstrap = 1000
 
 metric = 'pearson_r'
-bootstrap = 10
 sig = 95
 v = 'co2_flux_cumsum'
 metric = 'rmse'
@@ -71,10 +68,7 @@ for metric in ['pearson_r', 'rmse']:
                                    comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
 
 
-#bs.sel(results='skill', kind='init').where(bs.sel(results='p', kind='uninit') <= .05)[v].plot(col='lead', col_wrap=5)
-
 # plots
-sig = 99
 bootstrap = 1000
 comparison = 'm2e'
 psig = .05

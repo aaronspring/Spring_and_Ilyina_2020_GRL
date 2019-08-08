@@ -23,7 +23,7 @@ chardet                   3.0.4                 py37_1003    conda-forge
 click                     7.0                        py_0    conda-forge
 click-plugins             1.1.1                    pypi_0    pypi
 cligj                     0.5.0                    pypi_0    pypi
-climpred                  1.0.1                    pypi_0    pypi
+climpred                  0.0.post595+dirty          pypi_0    pypi
 cloudpickle               0.8.1                      py_0    conda-forge
 cmocean                   2.0                        py_0    conda-forge
 cryptography              2.6.1            py37h212c5bf_0    conda-forge
@@ -45,6 +45,7 @@ fasteners                 0.14.1                   pypi_0    pypi
 fftw                      3.3.8           nompi_h5c49c53_1105    conda-forge
 fiona                     1.8.6                    pypi_0    pypi
 freetype                  2.10.0               h24853df_0    conda-forge
+future                    0.17.1                   pypi_0    pypi
 geopandas                 0.5.0                    pypi_0    pypi
 geos                      3.7.1             h0a44026_1000    conda-forge
 gettext                   0.19.8.1          h46ab8bc_1002    conda-forge

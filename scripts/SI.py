@@ -3,7 +3,6 @@ from collections import OrderedDict
 from copy import copy
 
 import cartopy.crs as ccrs
-import cmocean
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,15 +13,17 @@ from climpred.bootstrap import (DPP_threshold, bootstrap_perfect_model,
                                 varweighted_mean_period_threshold)
 from climpred.prediction import compute_perfect_model, compute_persistence
 from climpred.stats import DPP, autocorr, rm_trend, varweighted_mean_period
-from esm_analysis.composite import composite_analysis
-from esm_analysis.stats import linregress, rm_trend
 from matplotlib.cm import ScalarMappable
 from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
-from PMMPIESM.plot import my_plot
+from scripts.basics import (_get_path, comply_climpred, labels, longname,
+                            metric_dict, path_paper, post_global, post_ML,
+                            shortname, units)
 from xskillscore import pearson_r
 
-from basics import (_get_path, labels, longname, metric_dict, path_paper,
-                    post_global, post_ML, shortname, units)
+import cmocean
+from esm_analysis.composite import composite_analysis
+from esm_analysis.stats import rm_trend
+from PMMPIESM.plot import my_plot
 
 warnings.filterwarnings("ignore")
 %matplotlib inline
@@ -38,19 +39,137 @@ CO2_to_C = 44.0095 / 12.0111
 savefig = False
 savefig = True
 
+# difference in predictability horizon
 
-# Fig SI ACF
-acf = []
-for i in range(11):
-    acf.append(autocorr(control_global, lag=i))
-acf = xr.concat(acf, 'time')
-acf.to_dataframe().plot()
-plt.ylabel('ACF [ ]')
-plt.xlabel('Lag [year]')
-plt.title('Autocorrelation function')
-plt.tight_layout()
-if savefig:
-    plt.savefig(path_paper + 'FigureSI_ACF')
+
+def step_lower(x, a):
+    return 1 * (x < a)
+
+
+def step_higher(x, a):
+    return 1 * (x >= a)
+
+
+def func(t, b, ph, c):
+    f = step_lower(t, ph) * ((c - b) / (ph) * (t) + b) + step_higher(t, ph) * c
+    return f
+
+
+def fit_ph_int(s, plot=False):
+    """
+    Calculate quick & dirty predictability horizon (PH) by optimizing squared differences.
+
+    input: pd.series
+    output: b, ph, c
+    """
+    import scipy.optimize as optimization
+    t_fit = np.arange(0, s.size)
+    sigmav = s.std()
+    sigma = np.linspace(sigmav / 2, sigmav, s.size)
+    mean = s
+    d = []
+    e = []
+    w = []
+    b = s.iloc[0]
+    x0 = np.array([0., s[5:].mean()])
+    for ph in t_fit:
+
+        def func(t, b, c):
+            f = step_lower(t, ph) * ((c - b) / (ph - 1)
+                                     * (t - 1) + b) + step_higher(t, ph) * c
+            return f
+
+        fit = optimization.curve_fit(func, t_fit, mean, x0, sigma)
+        b = fit[0][0]
+        c = fit[0][1]
+        a = func(t_fit, b, c)
+        diff2 = np.sum((mean - a)**2)
+        if ph < 15:
+            d.append(diff2)
+            e.append(b)
+            w.append(c)
+
+    def func(t, b, ph, c):
+        f = step_lower(t, ph) * ((c - b) / (ph - 1)
+                                 * (t - 1) + b) + step_higher(t, ph) * c
+        return f
+
+    ph = np.nanargmin(d)
+    c = w[ph]
+    b = e[ph]
+    return b, ph + 1, c
+
+
+def predictability_horizon(skill):
+    """Get predictability horizon (ph) from skill at last non-nan lead while setting all-nan leads to zero PH. Nans are masked if p below psig."""
+    ph = skill.argmin('lead', skipna=False)
+    ph = ph.where(ph != 0, np.nan)
+    ph_not_reached = (skill.notnull()).all('lead')
+    ph = ph.where(~ph_not_reached, other=skill['lead'].max())
+    return ph
+
+
+def Sef2018_Fig1_Different_PH_Definitions(ds, control, unit='PgC/yr', sig=95, bootstrap=250, save=True):
+    # from esmtools.prediction import predictability_horizon
+    from PMMPIESM.plot import _set_integer_xaxis
+    rsig = (100 - sig)/100
+    _control = control
+    _ds = ds
+    ss = compute_perfect_model(
+        _ds, _control, metric='rmse', comparison='m2e')
+    ss['lead'] = np.arange(1, ss.lead.size + 1)
+    # ss.name = 'every'
+    ss_boot = bootstrap_perfect_model(_ds, _control, metric='rmse',
+                                      comparison='m2e', sig=sig, bootstrap=bootstrap)
+    ss_p = ss_boot.sel(kind='uninit', results='p')
+    ss_ci_high = ss_boot.sel(kind='uninit', results='low_ci')
+
+    ph_Spring_2019 = predictability_horizon(
+        ss.where(ss_p < rsig)).values
+
+    b_m2e, ph_Sef_2018, c_m2e = fit_ph_int(ss.to_series())
+    print('ph_Sef_2018', ph_Sef_2018)
+    print('ph_Spring_2019', int(ph_Spring_2019))
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    std = _control.std('time').values
+
+    every_color = 'mediumorchid'
+    ss.name = 'skill'
+    ss.to_dataframe().plot(ax=ax, label='skill', color='k', marker='o')
+
+    t_fit = np.arange(0, _ds.lead.size)
+    ax.plot(t_fit[1:], func(t_fit, b_m2e, ph_Sef_2018, c_m2e)[1:],
+            linewidth=3, color=every_color, label='Sef 2018 breakpoint fit')
+    ax.axvline(x=ph_Sef_2018, linestyle='-.',
+               color=every_color, label='PH Sef 2018')
+    ax.axhline(y=std, ls='--', c='k', alpha=.3, label='std control')
+    ax.axhline(y=ss_ci_high.mean('lead'), ls=':',
+               c='royalblue', label='Bootstrapped high CI')
+
+    ax.axvline(x=ph_Spring_2019, ls='-.', c='royalblue',
+               label='PH Spring 2019')
+    ax.set_xlabel('Lead Time [time]')
+    ax.set_ylabel('RMSE [' + unit + ']')
+    ax.set_ylim([0, ss.max() * 1.1])
+    ax.set_xlim([0, 10])
+    _set_integer_xaxis(ax)
+    ax.legend(frameon=False, ncol=2)
+    ax.set_xticks(range(1, 11))
+    ax.set_title(
+        ' Global oceanic CO$_2$ flux: Differences in definitions of Predictability Horizon')
+    if save:
+        plt.tight_layout()
+        plt.savefig('Differences_PH_definition')
+
+
+ds = xr.open_dataset('data/results/ds_diagnosed_co2.nc')['co2_flx_ocean']
+control = xr.open_dataset(
+    'data/results/control_diagnosed_co2.nc')['co2_flx_ocean']
+ds, control = comply_climpred(ds, control)
+
+
+Sef2018_Fig1_Different_PH_Definitions(ds, control)
 
 
 # composite_analysis
@@ -141,9 +260,9 @@ if savefig:
     plt.savefig(path_paper + 'Figure10_CO2_wind_enso_composites')
 
 
-for v in ['co2_flux', 'temp2', 'precip', 'co2_flux_cumsum']:
-    print(v)
-    if v is 'co2_flux_cumsum':
+for v in ['co2_flux']  # , 'temp2', 'precip', 'co2_flux_cumsum']:
+  print(v)
+   if v is 'co2_flux_cumsum':
         vdata = xr.open_dataset(_get_path(
             'co2_flux', prefix='control'))['co2_flux'].squeeze()
         vdata = (vdata - vdata.mean('time')).cumsum('time')
@@ -179,103 +298,3 @@ for v in ['co2_flux', 'temp2', 'precip', 'co2_flux_cumsum']:
     if savefig:
         plt.savefig(path_paper + 'Figure10_' + v + '_enso_composites')
     plt.show()
-
-
-# Figs SI diagnostic control
-def vwmp_bootstrap(control, l=100, bootstrap=10, sig=99):
-    from climpred.bootstrap import varweighted_mean_period_threshold
-    d = []
-    for _ in range(int(bootstrap / 5)):
-        r = np.random.randint(0, control.time.size - l)
-        d.append(varweighted_mean_period(control.isel(time=slice(r, r + l))))
-    data = xr.concat(d, 'bootstrap')
-    data['lon'] = control.lon
-    data['lat'] = control.lat
-    dpp = data.mean('bootstrap')
-    threshold = varweighted_mean_period_threshold(
-        control, sig=sig, bootstrap=bootstrap)
-    threshold['lon'] = control.lon
-    threshold['lat'] = control.lat
-    dpp = dpp.where(dpp > threshold)
-    dpp.name = 'Period [years]'
-    return dpp
-
-
-def DPP_bootstrap(control, l=100, bootstrap=10, sig=99, **dpp_kwargs):
-    """Bootstrap DPP results and mask unsignificant."""
-    from climpred.bootstrap import varweighted_mean_period_threshold
-    d = []
-    # l: length of bootstrap block, block length
-    for _ in range(int(bootstrap / 5)):
-        r = np.random.randint(0, control.time.size - l)
-        d.append(DPP(control.isel(time=slice(r, r + l))))
-    data = xr.concat(d, 'bootstrap')
-    data['lon'] = control.lon
-    data['lat'] = control.lat
-    dpp = data.mean('bootstrap')
-    threshold = DPP_threshold(
-        control, sig=sig, bootstrap=bootstrap, **dpp_kwargs)
-    threshold['lon'] = control.lon
-    threshold['lat'] = control.lat
-    dpp = dpp.where(dpp > threshold)
-    dpp.name = 'DPP [years]'
-    return dpp
-
-
-l = 100
-bootstrap = 500
-
-
-def plot_varname_control_diagnostics(v, cmap='viridis'):
-    """Plot variability diagnostics from control run.
-
-    - (0,0): mean
-    - (0,1): standard deviation
-    - (1,0): Diagnostic Potential Predictability DPP m=10
-    - (1,1): Variance-weighted mean period
-    """
-    varname = v
-    fig, ax = plt.subplots(ncols=2, nrows=2, subplot_kw={
-                           'projection': ccrs.PlateCarree()}, figsize=(14, 7))
-    if v is 'co2_flux_cumsum':
-        control = xr.open_dataset(_get_path(
-            'co2_flux', prefix='control'))['co2_flux'].squeeze()
-        control = (control - control.mean('time')).cumsum('time')
-    else:
-        control = xr.open_dataset(_get_path(
-            v, prefix='control'))[v].squeeze()
-    if 'co2_f' in v:
-        control = control * 3600 * 24 * 365
-    control.name = v + ' [' + units[v] + ']'
-
-    my_plot(control.mean('time'), robust=True, ax=ax[0, 0], levels=11)
-    ax[0, 0].set_title('mean')
-    my_plot(control.std('time'), robust=True, ax=ax[0, 1], levels=11)
-    ax[0, 1].set_title('std')
-
-    m = 10
-    chunk = True
-
-    dpp = DPP_bootstrap(control, bootstrap=bootstrap, l=l, chunk=False)
-    my_plot(dpp, curv=False, ax=ax[1, 0], cmap=cmap, edgecolors='None',
-            robust=True, levels=11, vmin=0., vmax=.5, cbar_kwargs={
-        'label': 'DPP [ ]'})
-    ax[1, 0].set_title(
-        'Diagnostic Potential Predictability (m=' + str(m) + ')')
-
-    dpp = vwmp_bootstrap(control, bootstrap=bootstrap, l=l)
-    dpp.name = 'Period [years]'
-    my_plot(dpp, ax=ax[1, 1], curv=False,
-            cmap=cmap, vmin=1, vmax=12, levels=12, cbar_kwargs={
-        'label': 'mean Period P$_x$ [years]'})
-    ax[1, 1].set_title(
-        'Variance-weighted mean Period')
-    plt.suptitle(longname[v])
-    plt.tight_layout()
-    plt.subplots_adjust(top=0.95)
-    if savefig:
-        plt.savefig(path_paper + 'Figure_SI_control_diagnostics_' + v)
-
-
-for v in ['co2_flux', 'temp2', 'CO2', 'co2_flux_cumsum']:
-    plot_varname_control_diagnostics(v)

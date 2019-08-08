@@ -95,3 +95,7 @@ def comply_climpred(ds, control):
     if 'lev' in control.coords:
         del control['lev']
     return ds, control
+
+
+def yearmonmean(ds):
+    return ds.groupby('time.year').mean('time').rename({'year': 'time'})

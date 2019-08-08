@@ -10,9 +10,9 @@ import xarray as xr
 from climpred.bootstrap import bootstrap_perfect_model
 from climpred.graphics import plot_bootstrapped_skill_over_leadyear
 from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
-
-from basics import (_get_path, labels, longname, path_paper, post_global,
-                    shortname, units)
+from scripts.basics import (_get_path, labels, longname, path_paper,
+                            post_global, shortname, units, yearmonmean,
+                            yearmonsum)
 
 warnings.filterwarnings("ignore")
 %matplotlib inline
@@ -26,13 +26,12 @@ mpl.rcParams['savefig.dpi'] = 300
 mpl.rcParams['font.size'] = 14
 mpl.rcParams['axes.titlesize'] = 'medium'
 mpl.rcParams['legend.fontsize'] = 'smaller'
-labelsize = 14
 
 
 comparison = 'm2e'
-sig = 99
+sig = 95
 psig = (100 - sig) / 100
-bootstrap = 1000
+bootstrap = 5000
 
 control = xr.open_dataset(post_global + 'control_diagnosed_co2.nc')
 ds = xr.open_dataset(post_global + 'ds_diagnosed_co2.nc')
@@ -41,29 +40,27 @@ ds = xr.open_dataset(post_global + 'ds_diagnosed_co2.nc')
 if 'ensemble' in ds.dims:
     ds = ds.rename({'ensemble': 'init', 'time': 'lead'})
 
+p = '../data/results/'
 compute = False
 if compute:
     bs_acc = bootstrap_perfect_model(
         ds, control, metric='pearson_r', comparison=comparison, bootstrap=bootstrap, sig=sig)
     if save_nc:
-        bs_acc.to_netcdf('../data/results/'+'_'.join(['results', 'global', 'ym', 'metric', 'pearson_r',
-                                   'comparison', comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
+        bs_acc.to_netcdf(p+'_'.join(['results', 'global', 'ym', 'metric', 'pearson_r',
+                                     'comparison', comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
     bs_rmse = bootstrap_perfect_model(
         ds, control, metric='rmse', comparison=comparison, bootstrap=bootstrap, sig=sig)
     if save_nc:
-        bs_rmse.to_netcdf('../data/results/'+'_'.join(['results', 'global', 'ym', 'metric', 'rmse',
-                                    'comparison', comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
+        bs_rmse.to_netcdf(p+'_'.join(['results', 'global', 'ym', 'metric', 'rmse',
+                                      'comparison', comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
 else:
-    bs_acc = xr.open_dataset('../data/results/'+'_'.join(['results', 'global', 'ym', 'metric', 'pearson_r',
-                                       'comparison', comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
-    bs_rmse = xr.open_dataset('../data/results/'+'_'.join(['results', 'global', 'ym', 'metric', 'rmse',
-                                        'comparison', comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
+    bs_acc = xr.open_dataset(p+'_'.join(['results', 'global', 'ym', 'metric', 'pearson_r',
+                                         'comparison', comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
+    bs_rmse = xr.open_dataset(p+'_'.join(['results', 'global', 'ym', 'metric', 'rmse',
+                                          'comparison', comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
 
 
-bs = bs_acc[v]
-
-
-def plot_sig_star(bs, ax, sig=99, plot_legend=False):
+def plot_sig_star(bs, ax, sig=95, plot_legend=False, plot_lead_ints=True):
     """Plot a marker for significant lead years."""
     psig = (100 - sig) / 100
     p_uninit_over_init = bs.sel(kind='uninit', results='p')
@@ -77,11 +74,16 @@ def plot_sig_star(bs, ax, sig=99, plot_legend=False):
         ph = 0
     ax.scatter(bs.lead.values[:ph + 1], beat_uninit[:ph + 1], marker='*',
                c='k', s=125, zorder=10, label='significant at ' + str(sig) + '% level')
+    if plot_lead_ints:
+        for i in np.arange(1, ph+1):
+            print(ph, i)
+            ax.text(bs.lead.values[i], beat_uninit[i], str(i),
+                    c='white', zorder=12, fontsize=14)
     if plot_legend:
-        plt.legend(frameon=False)
+        ax.legend(frameon=False)
 
 
-def plot_both_skill(bs_acc, bs_rmse, ax=None, unit='unit', not_all=True, sig=99):
+def plot_both_skill(bs_acc, bs_rmse, ax=None, unit='unit', not_all=True, sig=95, plot_lead_ints=True):
     """Plot RMSE and ACC skill on x and y axis."""
     fontsize = 8
     c_uninit = 'indianred'
@@ -194,12 +196,18 @@ def plot_both_skill(bs_acc, bs_rmse, ax=None, unit='unit', not_all=True, sig=99)
         zorder=4,
         label='uninitialized at ' + str(sig) + '% confidence interval')
 
+    s = 150
     ax.scatter(init_skill2[:ph1], init_skill[:ph1], marker='*',
-               c='gray', s=125, alpha=.5, zorder=10, label='')
+               c='gray', s=s, alpha=.5, zorder=10, label='')
     ax.scatter(init_skill2[:ph2], init_skill[:ph2], marker='*',
-               c='gray', s=125, alpha=.5, zorder=10, label='')
+               c='gray', s=s, alpha=.5, zorder=10, label='')
     ax.scatter(init_skill2[:ph], init_skill[:ph], marker='*',
-               c='k', s=125, zorder=10, label='significant at ' + str(sig) + '% level')
+               c='k', s=s, zorder=10, label='significant at ' + str(sig) + '% level')
+    # add int labels
+    if plot_lead_ints:
+        for i in np.arange(ph):
+            ax.text(init_skill2[i], init_skill[i], str(i+1),
+                    color='white', zorder=12, fontsize=7, weight='bold', horizontalalignment='center', verticalalignment='center')
     # format
     ax.axvline(x=uninit_skill2, c='steelblue', ls=':')
     ax.axhline(y=uninit_skill, c='steelblue', ls=':')
@@ -224,7 +232,6 @@ def plot_fig2(bs_acc, bs_rmse, label_offset=0, sig=95):
                         ax=ax, unit=units[v], not_all=False, sig=sig)
         ax.set_title(shortname[v])
         ax.set_xlabel('RMSE [' + units[v] + ']')
-        # # TODO: fix index label
         ax.add_artist(AnchoredText('(' +
                                    labels[i + label_offset] + ')', prop=dict(size=labelsize), frameon=False, loc=2, pad=.05, borderpad=.1))
     axes[0, 0].set_ylabel('ACC [ ]')
@@ -233,10 +240,74 @@ def plot_fig2(bs_acc, bs_rmse, label_offset=0, sig=95):
     axes[1, 2].set_xlim([0, .9])
     axes[0, 0].set_ylim([-.6, 1.1])
     axes[1, 0].set_ylim([-.6, 1.1])
+    axes[1, 0].legend(fontsize=10, frameon=False)
     plt.tight_layout(h_pad=.1)
 
 
 # plot and save
 plot_fig2(bs_acc, bs_rmse)
+savefig = True
 if savefig:
     plt.savefig(path_paper + 'Figure2_2_co2_flux_skill', bbox_inches='tight')
+
+
+# plot Mauna Loa
+p = '../data/results/Mauna_Loa/'
+control = xr.open_dataset(p + 'control_CO2_mm.nc').compute()
+ds = xr.open_dataset(p + 'ds_CO2_mm.nc').compute()
+
+ds = yearmonmean(ds)
+control = yearmonmean(control)
+
+# rename dims to climpred requirements
+if 'ensemble' in ds.dims:
+    ds = ds.rename({'ensemble': 'init', 'time': 'lead'})
+
+
+bootstrap = 5000
+compute = False
+sig = 95
+if compute:
+    bs_acc = bootstrap_perfect_model(
+        ds, control, metric='pearson_r', comparison=comparison, bootstrap=bootstrap, sig=sig)
+    if save_nc:
+        bs_acc.to_netcdf(p+'_'.join(['results', 'MLO', 'ym', 'metric', 'pearson_r',
+                                     'comparison', comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
+    bs_rmse = bootstrap_perfect_model(
+        ds, control, metric='rmse', comparison=comparison, bootstrap=bootstrap, sig=sig)
+    if save_nc:
+        bs_rmse.to_netcdf(p+'_'.join(['results', 'MLO', 'ym', 'metric', 'rmse',
+                                      'comparison', comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
+else:
+    bs_acc = xr.open_dataset(p+'_'.join(['results', 'MLO', 'ym', 'metric', 'pearson_r',
+                                         'comparison', comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
+    bs_rmse = xr.open_dataset(p+'_'.join(['results', 'MLO', 'ym', 'metric', 'rmse',
+                                          'comparison', comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
+
+
+# plot Mauna Loa predictability
+# results Betts et al 2016
+# see scripts/Rebuilding_Betts_2016.ipynb
+betts_rmse = .43
+betts_acc = .75
+betts_rmse_detrended = .41
+betts_acc_detrended = .39
+
+v = 'CO2'
+fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(
+    7, 4))
+plot_both_skill(bs_acc[v], bs_rmse[v],
+                ax=ax, unit=units[v], not_all=False, sig=sig)
+ax.set_title(shortname[v])
+ax.set_xlabel('RMSE [' + units[v] + ']')
+ax.set_ylabel('ACC [ ]')
+ax.set_title('Predictability of prog. CO$_2$ mixing ratio at Mauna Loa')
+ax.scatter(betts_rmse, betts_acc, marker='$1$',
+           label='Betts et al. 2018 lead year 1', color='orchid')
+ax.scatter(betts_rmse_detrended, betts_acc_detrended, marker='$1$',
+           label='Betts et al. 2018 lead year 1 detrended', color='orange')
+ax.legend(loc='lower left', frameon=False, fontsize='x-small')
+ax.set_xlim(0, .9)
+plt.tight_layout(h_pad=.1)
+if savefig:
+    plt.savefig(path_paper + 'FigureSI_CO2_skill_MLO', bbox_inches='tight')

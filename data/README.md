@@ -17,4 +17,4 @@ Only globally-averaged output is provided. Please approach me for 3D files perso
 -   ensemble simulations global annual timeseries for Figure 1a-c: `ds_diagnosed_co2.nc`
 -   control global annual timeseries for Figure 1a-c: `control_diagnosed_co2.nc`
 -   Predictability Horizon for CO2 measurement stations from `fig3_4.py`: `ph_co2_stations.txt`
--   Bootstrapped global annual predictive skill results for Figure 2: `results_{name..region}_metric_{metric_name}_comparison_{comparison_name}_sig_99_bootstrap_1000.nc`
+-   Bootstrapped global annual predictive skill results for Figure 2: `results_{name..region}_metric_{metric_name}_comparison_{comparison_name}_sig_95_bootstrap_5000.nc`
