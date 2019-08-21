@@ -10,7 +10,7 @@ This repo is setup for scientists interested to reproduce our `Spring and Ilyina
 
 ## Climate model setup
 
-See config file scripts/asp_esmControl_ens3178_m0001.config.
+See config file `scripts/asp_esmControl_ens3178_m0001.config`.
 
 ## Packages used mostly
 

@@ -10,9 +10,9 @@ import xarray as xr
 from climpred.bootstrap import bootstrap_perfect_model
 from climpred.graphics import plot_bootstrapped_skill_over_leadyear
 from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
+
 from scripts.basics import (_get_path, labels, longname, path_paper,
-                            post_global, shortname, units, yearmonmean,
-                            yearmonsum)
+                            post_global, shortname, units, yearmonmean)
 
 warnings.filterwarnings("ignore")
 %matplotlib inline
@@ -26,7 +26,8 @@ mpl.rcParams['savefig.dpi'] = 300
 mpl.rcParams['font.size'] = 14
 mpl.rcParams['axes.titlesize'] = 'medium'
 mpl.rcParams['legend.fontsize'] = 'smaller'
-
+mpl.rcParams['savefig.format'] = 'eps'
+labelsize = 14
 
 comparison = 'm2e'
 sig = 95
@@ -40,7 +41,7 @@ ds = xr.open_dataset(post_global + 'ds_diagnosed_co2.nc')
 if 'ensemble' in ds.dims:
     ds = ds.rename({'ensemble': 'init', 'time': 'lead'})
 
-p = '../data/results/'
+p = 'data/results/'
 compute = False
 if compute:
     bs_acc = bootstrap_perfect_model(
@@ -211,6 +212,7 @@ def plot_both_skill(bs_acc, bs_rmse, ax=None, unit='unit', not_all=True, sig=95,
     # format
     ax.axvline(x=uninit_skill2, c='steelblue', ls=':')
     ax.axhline(y=uninit_skill, c='steelblue', ls=':')
+    ax.set_rasterized(True)
     if not_all:
         ax.legend(frameon=False, handletextpad=0.05)
         ax.set_ylabel('ACC')
@@ -244,15 +246,17 @@ def plot_fig2(bs_acc, bs_rmse, label_offset=0, sig=95):
     plt.tight_layout(h_pad=.1)
 
 
+mpl.rcParams['savefig.dpi'] = 300
+mpl.rcParams['savefig.format'] = 'jpg'
 # plot and save
 plot_fig2(bs_acc, bs_rmse)
-savefig = True
 if savefig:
-    plt.savefig(path_paper + 'Figure2_2_co2_flux_skill', bbox_inches='tight')
+    plt.savefig(path_paper + 'Figure1_predictability_skill',
+                bbox_inches='tight')
 
 
 # plot Mauna Loa
-p = '../data/results/Mauna_Loa/'
+p = 'data/plain_model_output/Mauna_Loa/'
 control = xr.open_dataset(p + 'control_CO2_mm.nc').compute()
 ds = xr.open_dataset(p + 'ds_CO2_mm.nc').compute()
 
@@ -267,6 +271,7 @@ if 'ensemble' in ds.dims:
 bootstrap = 5000
 compute = False
 sig = 95
+p = 'data/results/Mauna_Loa/'
 if compute:
     bs_acc = bootstrap_perfect_model(
         ds, control, metric='pearson_r', comparison=comparison, bootstrap=bootstrap, sig=sig)
@@ -285,7 +290,7 @@ else:
                                           'comparison', comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
 
 
-# plot Mauna Loa predictability
+# plot Mauna Loa predictability Figure SI1c
 # results Betts et al 2016
 # see scripts/Rebuilding_Betts_2016.ipynb
 betts_rmse = .43
@@ -307,7 +312,10 @@ ax.scatter(betts_rmse, betts_acc, marker='$1$',
 ax.scatter(betts_rmse_detrended, betts_acc_detrended, marker='$1$',
            label='Betts et al. 2018 lead year 1 detrended', color='orange')
 ax.legend(loc='lower left', frameon=False, fontsize='x-small')
+ax.add_artist(AnchoredText('(' +
+                           labels[2] + ')', prop=dict(size=labelsize), frameon=False, loc=2, pad=.05, borderpad=.1))
 ax.set_xlim(0, .9)
+ax.set_rasterized(True)
 plt.tight_layout(h_pad=.1)
 if savefig:
     plt.savefig(path_paper + 'FigureSI_CO2_skill_MLO', bbox_inches='tight')

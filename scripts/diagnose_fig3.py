@@ -1,8 +1,7 @@
 import warnings
-from collections import OrderedDict
-from copy import copy
 
 import cartopy.crs as ccrs
+import cmocean
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,19 +14,18 @@ from climpred.prediction import compute_perfect_model, compute_persistence
 from climpred.stats import DPP, autocorr, rm_trend, varweighted_mean_period
 from matplotlib.cm import ScalarMappable
 from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
-from scripts.basics import (_get_path, labels, longname, metric_dict,
-                            path_paper, post_global, post_ML, shortname, units,
-                            yearmonmean)
-from xskillscore import pearson_r
-
-import cmocean
-from esmtools.composite import composite_analysis
-from esmtools.stats import linregress, rm_trend
 from PMMPIESM.plot import (_cmap_discretize, _get_PH_station,
                            _plot_co2_stations, my_facetgrid, my_plot, plot_ph,
                            plot_timeseries, truncate_colormap)
 from PMMPIESM.predictability import bootstrap_predictability_horizon
 from PMMPIESM.setup import load_reg_area
+from xskillscore import pearson_r
+
+from esmtools.composite import composite_analysis
+from esmtools.stats import linregress, rm_trend
+from scripts.basics import (_get_path, labels, longname, metric_dict,
+                            path_paper, post_global, post_ML, shortname, units,
+                            yearmonmean)
 
 warnings.filterwarnings("ignore")
 %matplotlib inline
@@ -36,6 +34,7 @@ mpl.rcParams['savefig.dpi'] = 300
 mpl.rcParams['font.size'] = 16
 mpl.rcParams['axes.titlesize'] = 'medium'
 mpl.rcParams['legend.fontsize'] = 'small'
+mpl.rcParams['savefig.format'] = 'eps'
 #mpl.rcParams['colorbar.titlesize'] = 'medium'
 
 r_ppmw2ppmv = 28.8 / 44.0095
@@ -129,106 +128,41 @@ if recalc_diagnosed:
     ds_global.to_netcdf(post_global + 'ds_diagnosed_co2.nc')
     control_global.to_netcdf(post_global + 'control_diagnosed_co2.nc')
 else:
+    post_global = 'data/results/'
     ds_global = xr.open_dataset(post_global + 'ds_diagnosed_co2.nc')
     control_global = xr.open_dataset(post_global + 'control_diagnosed_co2.nc')
 
 
-# Figure 1a-c
-def plot_timeseries(ds,
-                    control,
-                    ignore=True,
-                    ax=False,
-                    ens_color='mediumseagreen',
-                    ensmean_color='seagreen',
-                    mean_line=False):
-    """Plot an ensemble timeseries. Ignore a list of ensembles.
-
-    Args
-        ds, control : xr.Dataset
-        varname : str
-    """
-    ignore_ens = [3023, 3124, 3139, 3178, 3237]
-    if not ax:
-        fig, ax = plt.subplots(figsize=(20, 5))
-
-    # plot control
-    control = control.to_series()
-    ax.plot(control, color='black', alpha=1, label='control')
-    if mean_line:
-        ax.axhline(control.mean(), color='blue', alpha=.1)
-
-    # plot ens, ensmean, vertical lines
-    for ens in ds.ensemble.values:
-        if ignore and ens in ignore_ens:
-            continue
-        ax.axvline(
-            x=ens - 1,
-            color='black',
-            alpha=.2,
-            linestyle='--',
-            label='ensemble initialization')
-        df = ds.sel(
-            ensemble=ens).to_dataframe('varname').unstack()['varname'].T
-        df[0] = control.loc[ens - 1]
-        df = df.T.sort_index(axis=0)
-        df.index = np.arange(ens - 1, ens - 1 + df.index.size)
-        ax.plot(df, color=ens_color, linewidth=0.5, label='ensemble members')
-        ax.plot(
-            df.mean(axis=1),
-            color=ensmean_color,
-            linewidth=2,
-            alpha=1,
-            label='ensemble mean')
-
-    handles, labels = ax.get_legend_handles_labels()
-    by_label = OrderedDict(zip(labels, handles))
-    ax.legend(by_label.values(), by_label.keys(), ncol=4,
-              prop={'size': 12}, loc='lower center')
-
-
-# Fig. 1ab
-fig, ax2 = plt.subplots(nrows=2,
-                        ncols=1, figsize=(11, 5), sharex=True)
-i = 0
+# Fig. 3c
+fig, ax2 = plt.subplots(nrows=1,
+                        ncols=1, figsize=(12, 3))
+i = 2
 # set prog to diag level, use free parameter
 prog = control_global['CO2']
 diag = control_global['diag_CO2']
 diff = -prog.mean('time')+diag.mean('time')
 prog = prog+diff
-prog.plot(c='black', label='prognostic CO$_2$', ax=ax2[i])
-diag.plot(c='goldenrod', label='diagnostic CO$_2$', ax=ax2[i])
+prog.plot(c='black', label='prognostic CO$_2$', ax=ax2)
+diag.plot(c='goldenrod', label='diagnostic CO$_2$', ax=ax2)
 control_global['diag_CO2_land'].plot(
-    c='green', label='diag. due to land', ax=ax2[i])
+    c='green', label='diag. due to land', ax=ax2)
 control_global['diag_CO2_ocean'].plot(
-    c='royalblue', label='diag. due to ocean', ax=ax2[i])
-ax2[i].set_title('diagnostic atm. CO$_2$ method verification')
-ax2[i].set_ylabel('[ppm]')
-ax2[i].legend(ncol=4, fontsize=12)
-ax2[i].set_yticks([278, 279, 280, 281])
-ax2[i].set_ylim([277.3, 281.5])
-ax2[i].set_xlabel('')
-ax2[i].add_artist(AnchoredText('(' + labels[i] + ')', prop=dict(
+    c='royalblue', label='diag. due to ocean', ax=ax2)
+ax2.set_title('diagnostic atm. CO$_2$ method verification')
+ax2.set_ylabel('[ppm]')
+ax2.legend(ncol=4, fontsize=12, frameon=False)
+ax2.set_yticks([278, 279, 280, 281])
+ax2.set_ylim([277.3, 281.5])
+ax2.set_xlim([3000, 3300])
+ax2.set_xlabel('Time [year]')
+ax2.add_artist(AnchoredText('(' + labels[i] + ')', prop=dict(
     size=12), frameon=False, loc=2, pad=.05))
-v = 'CO2'
-i = 1
-plot_timeseries(ds_global[v]+diff.values, prog, ax=ax2[i])
-# ax[i].set_title(v)
-ax2[i].set_xlim([3000, 3300])
-ax2[i].set_ylabel(' [' + units[v] + ']')
-ax2[i].set_title(longname[v])
-ax2[i].set_yticks([278, 279, 280, 281])
-ax2[i].set_ylim([277.3, 281.5])
-ax2[i].add_artist(AnchoredText('(' + labels[i] + ')', prop=dict(
-    size=12), frameon=False, loc=2, pad=.05))
-ax2[i].set_xlabel('Time [year]')
-plt.tight_layout(h_pad=.1)
-plt.subplots_adjust(top=0.92)
+plt.tight_layout()
 if savefig:
-    plt.savefig(path_paper + 'Figure1_global_timeline_overview')
+    plt.savefig(path_paper + 'Figure3_diag_prog', bbox_inches='tight')
 
 
-# Fig 1de
-
+# Fig 3bc
 
 def vwmp_bootstrap(control, l=100, bootstrap=10, sig=99):
     """Bootstrap variance weighted mean period from control. Masked areas are non-significant. Rejected at 1-sig% level."""
@@ -273,21 +207,9 @@ g = my_facetgrid(vwmp, col='variable', robust=True, cmap='cmo.haline', aspect=2,
                  'label': 'mean Period P$_x$ [years]'}, vmin=2, vmax=12, plot_lon_lat_axis=True)
 for i, ax in enumerate(g.axes.flat):
     ax.set_title(l[i], fontsize=14)
-    ax.add_artist(AnchoredText('(' + labels[i+2] + ')', prop=dict(
-        size=12), frameon=False, loc=2, pad=.05))
+    ax.add_artist(AnchoredText('(' + labels[i] + ')', prop=dict(
+        size=12, color='k'), frameon=False, loc=2, pad=.0))
+mpl.rcParams['savefig.format'] = 'jpg'
+mpl.rcParams['savefig.dpi'] = 600
 if savefig:
-    plt.savefig(path_paper + 'Figure1_vwmp')
-
-
-# Fig SI Mauna Loa 1
-ds_ML = xr.open_dataset(post_ML + 'ds_CO2_ym.nc')
-control_ML = xr.open_dataset(post_ML + 'control_CO2_ym.nc')
-fig, ax = plt.subplots(figsize=(12, 3))
-plot_timeseries(ds_ML['CO2'], control_ML['CO2'], ax=ax)
-plt.title('annual atmospheric CO$_2$ concentrations at Mauna Loa')
-plt.ylabel('atmospheric CO$_2$ [ppm]')
-plt.xlabel('Time [year]')
-plt.xlim([3000, 3300])
-plt.tight_layout()
-if savefig:
-    plt.savefig(path_paper + 'Figure1_atmco2_timeline_Mauna_Loa')
+    plt.savefig(path_paper + 'Figure3_vwmp')

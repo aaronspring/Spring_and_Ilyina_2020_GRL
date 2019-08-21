@@ -1,29 +1,26 @@
 import warnings
 from collections import OrderedDict
-from copy import copy
 
 import cartopy.crs as ccrs
+import cmocean
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sb
+import PMMPIESM
 import xarray as xr
 from climpred.bootstrap import (DPP_threshold, bootstrap_perfect_model,
                                 varweighted_mean_period_threshold)
 from climpred.prediction import compute_perfect_model, compute_persistence
 from climpred.stats import DPP, autocorr, rm_trend, varweighted_mean_period
-from matplotlib.cm import ScalarMappable
-from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
-from scripts.basics import (_get_path, comply_climpred, labels, longname,
-                            metric_dict, path_paper, post_global, post_ML,
-                            shortname, units)
-from xskillscore import pearson_r
-
-import cmocean
 from esm_analysis.composite import composite_analysis
 from esm_analysis.stats import rm_trend
+from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
 from PMMPIESM.plot import my_plot
+from xskillscore import pearson_r
+
+from scripts.basics import (_get_path, comply_climpred, labels, longname,
+                            metric_dict, path_paper, post_global, post_ML,
+                            shortname, units, yearmonmean)
 
 warnings.filterwarnings("ignore")
 %matplotlib inline
@@ -32,12 +29,113 @@ mpl.rcParams['savefig.dpi'] = 300
 mpl.rcParams['font.size'] = 16
 mpl.rcParams['axes.titlesize'] = 'medium'
 mpl.rcParams['legend.fontsize'] = 'small'
+mpl.rcParams['savefig.format'] = 'eps'
 
 r_ppmw2ppmv = 28.8 / 44.0095
 CO2_to_C = 44.0095 / 12.0111
 
 savefig = False
 savefig = True
+
+
+def plot_timeseries(ds,
+                    control,
+                    ignore=True,
+                    ax=False,
+                    ens_color='mediumseagreen',
+                    ensmean_color='seagreen',
+                    mean_line=False):
+    """Plot an ensemble timeseries. Ignore a list of ensembles.
+
+    Args
+        ds, control : xr.Dataset
+        varname : str
+    """
+    ignore_ens = [3023, 3124, 3139, 3178, 3237]
+    if not ax:
+        fig, ax = plt.subplots(figsize=(20, 5))
+
+    # plot control
+    control = control.to_series()
+    ax.plot(control, color='black', alpha=1, label='control')
+    if mean_line:
+        ax.axhline(control.mean(), color='blue', alpha=.1)
+
+    # plot ens, ensmean, vertical lines
+    for ens in ds.ensemble.values:
+        if ignore and ens in ignore_ens:
+            continue
+        ax.axvline(
+            x=ens - 1,
+            color='black',
+            alpha=.2,
+            linestyle='--',
+            label='ensemble initialization')
+        df = ds.sel(
+            ensemble=ens).to_dataframe('varname').unstack()['varname'].T
+        df[0] = control.loc[ens - 1]
+        df = df.T.sort_index(axis=0)
+        df.index = np.arange(ens - 1, ens - 1 + df.index.size)
+        ax.plot(df, color=ens_color, linewidth=0.5, label='ensemble members')
+        ax.plot(
+            df.mean(axis=1),
+            color=ensmean_color,
+            linewidth=2,
+            alpha=1,
+            label='ensemble mean')
+
+    handles, labels = ax.get_legend_handles_labels()
+    by_label = OrderedDict(zip(labels, handles))
+    ax.legend(by_label.values(), by_label.keys(), ncol=4,
+              prop={'size': 12}, loc='lower center')
+
+
+# Load global data
+post_global = 'data/results/'
+ds_global = xr.open_dataset(post_global + 'ds_diagnosed_co2.nc')
+control_global = xr.open_dataset(post_global + 'control_diagnosed_co2.nc')
+
+fig, ax2 = plt.subplots(nrows=2,
+                        ncols=1, figsize=(11, 5), sharex=True)
+v = 'CO2'
+i = 0
+plot_timeseries(ds_global[v], control_global[v], ax=ax2[i])
+ax2[i].set_xlim([3000, 3300])
+ax2[i].set_ylabel(' [' + units[v] + ']')
+ax2[i].set_title('global '+longname[v])
+ax2[i].set_yticks([278, 279, 280, 281, 282])
+ax2[i].set_ylim([277.3, 282.5])
+ax2[i].add_artist(AnchoredText('(' + labels[i] + ')', prop=dict(
+    size=12), frameon=False, loc=2, pad=.05))
+ax2[i].get_legend().remove()
+
+# Load ML data
+p = 'data/plain_model_output/Mauna_Loa/'
+control = xr.open_dataset(p + 'control_CO2_mm.nc').compute()
+ds = xr.open_dataset(p + 'ds_CO2_mm.nc').compute()
+del ds['lev']
+del control['lev']
+ds = yearmonmean(ds)
+ds['time'] = np.arange(1, 1+ds.time.size)
+control = yearmonmean(control)
+control['time'] = np.arange(3000, 3000+control.time.size)
+
+
+i = 1
+plot_timeseries(ds[v], control[v], ax=ax2[i])
+ax2[i].set_xlim([3000, 3300])
+ax2[i].set_ylabel(' [' + units[v] + ']')
+ax2[i].set_title('Mauna Loa atmospheric CO$_2$ mixing ratio')
+ax2[i].set_yticks([278, 279, 280, 281, 282])
+ax2[i].set_ylim([277.3, 282.5])
+ax2[i].add_artist(AnchoredText('(' + labels[i] + ')', prop=dict(
+    size=12), frameon=False, loc=2, pad=.05))
+ax2[i].set_xlabel('Time [year]')
+plt.tight_layout(h_pad=.1)
+plt.subplots_adjust(top=0.92)
+if savefig:
+    plt.savefig(path_paper + 'FigureSI_timeline_prog_CO2')
+
 
 # difference in predictability horizon
 
@@ -109,7 +207,7 @@ def predictability_horizon(skill):
     return ph
 
 
-def Sef2018_Fig1_Different_PH_Definitions(ds, control, unit='PgC/yr', sig=95, bootstrap=250, save=True):
+def Sef2018_Fig1_Different_PH_Definitions(ds, control, unit='PgC/yr', sig=95, bootstrap=1000):
     # from esmtools.prediction import predictability_horizon
     from PMMPIESM.plot import _set_integer_xaxis
     rsig = (100 - sig)/100
@@ -158,9 +256,9 @@ def Sef2018_Fig1_Different_PH_Definitions(ds, control, unit='PgC/yr', sig=95, bo
     ax.set_xticks(range(1, 11))
     ax.set_title(
         ' Global oceanic CO$_2$ flux: Differences in definitions of Predictability Horizon')
-    if save:
+    if savefig:
         plt.tight_layout()
-        plt.savefig('Differences_PH_definition')
+        plt.savefig('FigureSI_Differences_PH_definition')
 
 
 ds = xr.open_dataset('data/results/ds_diagnosed_co2.nc')['co2_flx_ocean']
@@ -173,7 +271,8 @@ Sef2018_Fig1_Different_PH_Definitions(ds, control)
 
 
 # composite_analysis
-
+mpl.rcParams['savefig.format'] = 'jpg'
+mpl.rcParams['savefig.dpi'] = 600
 # Load ENSO
 control3d = xr.open_dataset(_get_path(
     'tos', prefix='control'))
@@ -181,7 +280,7 @@ control3d = control3d - \
     control3d.rolling(time=10, center=True, min_periods=1).mean()
 
 nino34_mask = xr.open_dataset(
-    PM.setup.file_origin + 'masks/enso_34_mask.nc')['alon'].squeeze()
+    PMMPIESM.setup.file_origin + 'masks/enso_34_mask.nc')['alon'].squeeze()
 # nino34_mask.plot()
 
 enso = (control3d * nino34_mask).mean(['x', 'y']).squeeze()['tos']
@@ -243,26 +342,25 @@ levels = 21
 fig, axes = plt.subplots(nrows=2, ncols=2, subplot_kw={
                          'projection': ccrs.PlateCarree()}, figsize=(15, 7))
 quiver(CO2.mean('time'), u10.mean('time'), v10.mean('time'),
-       quiverreference_size=10, levels=levels, robust=True, cmap='viridis', ax=axes[0, 0], qkx=.35, qky=.97)
+       quiverreference_size=10, levels=levels, robust=True, cmap='viridis', ax=axes[0, 0], qkx=.45, qky=.95)
 
 axes[0, 0].set_title('Mean surface atmospheric CO$_2$ and wind')
 quiver(CO2.std('time'), u10.std('time'), v10.std('time'),
-       quiverreference_size=2, levels=levels, cmap='viridis', robust=True, ax=axes[0, 1], qkx=.9, qky=.97)
+       quiverreference_size=2, levels=levels, cmap='viridis', robust=True, ax=axes[0, 1], qkx=.95, qky=.95)
 axes[0, 1].set_title(
-    'Inter-annual variability surface atmospheric CO$_2$ and wind')
+    'Inter-annual variability surface atmospheric CO$_2$')
 for i, index in enumerate(['positive', 'negative']):
     quiver(comp_CO2.sel(index=index), comp_u10.sel(index=index), comp_u10.sel(
-        index=index), ax=axes[1, i], vmin=-1, vmax=1, cmap='RdBu_r', levels=levels, qkx=.47, qky=.47)
+        index=index), ax=axes[1, i], vmin=-1, vmax=1, cmap='RdBu_r', levels=levels, qkx=.45, qky=.47)
 axes[1, 0].set_title('El Nino composite')
 axes[1, 1].set_title('La Nina composite')
 plt.tight_layout()
 if savefig:
-    plt.savefig(path_paper + 'Figure10_CO2_wind_enso_composites')
+    plt.savefig(path_paper + 'FigureSI_CO2_wind_enso_composites')
 
-
-for v in ['co2_flux']  # , 'temp2', 'precip', 'co2_flux_cumsum']:
-  print(v)
-   if v is 'co2_flux_cumsum':
+for v in ['co2_flux']:  # , 'temp2', 'precip', 'co2_flux_cumsum']:
+    print(v)
+    if v is 'co2_flux_cumsum':
         vdata = xr.open_dataset(_get_path(
             'co2_flux', prefix='control'))['co2_flux'].squeeze()
         vdata = (vdata - vdata.mean('time')).cumsum('time')
@@ -296,5 +394,5 @@ for v in ['co2_flux']  # , 'temp2', 'precip', 'co2_flux_cumsum']:
     axes[1, 1].set_title('La Nina composite')
     plt.tight_layout()
     if savefig:
-        plt.savefig(path_paper + 'Figure10_' + v + '_enso_composites')
+        plt.savefig(path_paper + 'FigureSI_' + v + '_enso_composites')
     plt.show()

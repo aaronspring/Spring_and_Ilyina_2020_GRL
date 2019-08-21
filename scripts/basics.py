@@ -17,7 +17,7 @@ units['nino34'] = '$^\circ$C'
 units['precip'] = 'kg m$^{-2}$ s$^{-1}$'
 
 longname = dict()
-longname['CO2'] = 'surface atmospheric CO$_2$ concentration'
+longname['CO2'] = 'surface atmospheric CO$_2$ mixing ratio'
 longname['co2_flux'] = 'surface CO$_2$ flux'
 longname['co2_flx_ocean'] = 'air-sea CO$_2$ flux'
 longname['co2_flx_land'] = 'air-land CO$_2$ flux'

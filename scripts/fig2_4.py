@@ -2,25 +2,31 @@ import glob
 import warnings
 from copy import copy
 
+import cartopy.crs as ccrs
+import cmocean
+import geopandas
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
 from climpred.bootstrap import bootstrap_perfect_model
+from matplotlib.cm import ScalarMappable
+from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
+from PMMPIESM.plot import _cmap_discretize, my_plot
 
-import geopandas
-from basics import (_get_path, comply_climpred, data_path, labels, longname,
-                    path_paper, post_global, shortname, units)
-from PMMPIESM.plot import _plot_co2_stations, my_plot
+from scripts.basics import (_get_path, comply_climpred, data_path, labels,
+                            longname, metric_dict, path_paper, post_global,
+                            shortname, units)
 
 warnings.filterwarnings("ignore")
 %matplotlib inline
 
-mpl.rcParams['savefig.dpi'] = 300
 mpl.rcParams['font.size'] = 14
 mpl.rcParams['axes.titlesize'] = 'medium'
 mpl.rcParams['legend.fontsize'] = 'smaller'
+mpl.rcParams['savefig.format'] = 'jpg'
+mpl.rcParams['savefig.dpi'] = 600
 labelsize = 14
 
 save_nc = False
@@ -38,28 +44,17 @@ bootstrap = 1000
 
 metric = 'pearson_r'
 sig = 95
-v = 'co2_flux_cumsum'
+v = 'co2_flux'
 metric = 'rmse'
 for metric in ['pearson_r', 'rmse']:
-    for v in ['co2_flux_cumsum', 'co2_flux', 'CO2']:
+    for v in ['co2_flux', 'CO2']:
         varstring = copy(v)
-        if v.endswith('_cumsum'):
-            v = v[:-7]
         print(v, varstring)
         ds = xr.open_dataset(data_path + 'ds_' + v + '_ym.nc').load()
         control = xr.open_dataset(data_path + 'control_' + v + '_ym.nc').load()
         ds, control = comply_climpred(ds, control)
-        if varstring is 'co2_flux_cumsum':
-            print('cumsum')
-            # remove mean and aggregate
-            a = (ds - control.mean('time')).cumsum('lead')
-            b = (control - control.mean('time')).cumsum('time')
-            a['lead'] = ds.lead
-            b['time'] = control.time
-            ds = a
-            control = b
-        else:  # faster
-            ds = ds.isel(lead=slice(None, 10))
+        # faster
+        ds = ds.isel(lead=slice(None, 10))
 
         bs = bootstrap_perfect_model(
             ds, control, metric=metric, comparison=comparison, bootstrap=bootstrap, sig=sig)
@@ -127,10 +122,80 @@ def plot_ph(ph, vmax=12, vmin=0, cmapstr='viridis', ax=None, curv=False, plot_cb
     return p
 
 
+def _plot_co2_stations(ph=None, print_results=True, print_station_names=True, ax=None, zorder=1):
+    """Plot locations of atmospheric CO2 measurement stations to cartopy plot.
+    https://cdiac.ess-dive.lbl.gov/trends/co2/sio-keel.html
+    """
+    alert = [82.28, -62.30]
+    barrow = [71.19, -156.36]
+    la_jolla = [32.9, -117.3]
+    mauna_loa = [19.32, -155.35]
+    christmas_island = [2, -157.17]
+    american_samoa = [-14.15, -170.34]
+    kermadec_islands = [-29.2, -177.9]
+    baring_head = [-41.24, 174.54]
+    south_pole = [-89.59, -24.48]
+    stations = [
+        alert, barrow, la_jolla, mauna_loa, christmas_island, american_samoa,
+        kermadec_islands, baring_head, south_pole
+    ]
+    stations_str = [
+        'Alert', 'Point Barrow', 'La Jolla', 'Mauna Loa', 'Christmas Island',
+        'American Samoa', 'Kermadec Islands', 'Baring Head', 'South Pole'
+    ]
+    lons = []
+    lats = []
+    if ax is None:
+        ax = plt.gca()
+    for station in stations:
+        lons.append(station[1])
+        lats.append(station[0])
+    ax.scatter(
+        lons,
+        lats,
+        color='red',
+        linewidth=0,
+        marker='X',
+        s=200,
+        transform=ccrs.PlateCarree(),
+        zorder=zorder
+    )
+    if (ph is not None) and print_results:
+        df = pd.DataFrame(index=['lat', 'lon', 'predictability horizon'])
+        for i, station in enumerate(stations):
+            lat = station[0]
+            lon = station[1]
+            ph_years = _get_PH_station(ph, lat, lon).values
+            if np.isnan(ph_years):
+                ph_years = 0.
+            df[stations_str[i]] = lat, lon, int(ph_years)
+            if print_station_names:
+                at_x, at_y = ax.projection.transform_point(
+                    lon, lat, src_crs=ccrs.PlateCarree())
+                ax.annotate(
+                    stations_str[i],
+                    xy=(at_x, at_y),
+                    xytext=(0, 8),
+                    textcoords='offset points',
+                    horizontalalignment='center',
+                    color='red',
+                    size=10,
+                    zorder=zorder)
+        print('Predictability Horizon for different stations')
+        print(df.T)
+        return df
+
+
+def _get_PH_station(ph, lat, lon):
+    """Get predictability Horizon value for lat, lon (+360)."""
+    return ph.sel(
+        lat=lat, lon=lon + 360, method='nearest')  # .drop('lev')
+
+
 def plot_fig_lead_ph(skill2, ph, metric, cmap='viridis_r', max_ph=7, varstring=None, robust_level=None, **kwargs):
     """Plot first five leads and predictability horizon as panel plot.
 
-    See Spring and Ilyina, 2019 Figs. 3 & 4."""
+    See Spring and Ilyina, 2019 Figs. 2 & 4."""
     if varstring is None:
         varstring = skill2.name
     projection = ccrs.PlateCarree()
@@ -207,24 +272,22 @@ def plot_fig_lead_ph(skill2, ph, metric, cmap='viridis_r', max_ph=7, varstring=N
     del cmap
 
 
-plot_fig_lead_ph(skill, ph, metric, cmap='cmo.haline',
-                 levels=None, varstring=varstring)
-
-#plot_fig_lead_ph(skill, ph, metric, cmap='cmo.haline', levels=None, varstring=varstring)
-
+# plot_fig_lead_ph(skill, ph, metric, cmap='cmo.haline',
+#                 levels=None, varstring=varstring)
+bootstrap = 1000
+sig = 99
+savefig = True
 # Plotting loop
 conv = 24 * 3600 * 365
 psig = .05
 max_ph = 6
 for metric in ['pearson_r', 'rmse']:
-    for v in ['co2_flux', 'CO2', 'co2_flux_cumsum']:
+    for v in ['co2_flux', 'CO2']:
         cmap = 'cmo.haline_r'
         varstring = copy(v)
-        if varstring.endswith('cumsum'):
-            v = v[:-7]
         fname = '_'.join(['results', varstring, 'ym', 'metric', metric, 'comparison',
                           comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc'
-        ds = xr.open_dataset(fname)[v]
+        ds = xr.open_dataset('data/tmp/'+fname)[v]
         skill = ds.sel(results='skill', kind='init').where(
             ds.sel(results='p', kind='uninit') <= psig)
 
@@ -244,8 +307,14 @@ for metric in ['pearson_r', 'rmse']:
         print(v, varstring, metric, metricname, cmap)
         plot_fig_lead_ph(skill2, ph, metric, cmap,
                          max_ph=max_ph, varstring=varstring)
+        if v is 'co2_flux':
+            figno = '2'
+        elif v is 'CO2':
+            figno = '4'
+        if metric is 'rmse':
+            figno = 'SI'+figno
         if savefig:
-            plt.savefig(path_paper + 'Figure3_' + varstring +
+            plt.savefig(path_paper + 'Figure'+figno+'_' + varstring +
                         '_' + metricname, bbox_inches='tight')
         plt.show()
 
