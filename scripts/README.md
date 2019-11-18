@@ -22,7 +22,7 @@ We use the following observation-based datasets to compare to MPI-ESM:
 -   `variable`: `name` :`dataset`: `link`
 -   `co2_flx_ocean`: ocean CO2 flux :`SOM-FFN` <https://www.mpimet.mpg.de/mitarbeiter/peter-landschuetzer/links/>
 -   `co2_flx_land`: terrestrial CO2 flux : `Jena CarboScope CO2 inversion sEXTocNEET_v4.3` <https://www.bgc-jena.mpg.de/CarboScope/?ID=s>
--   `CO2`: surface atmospheric CO2 mixing-ratio: `Jena CarboScope CO2 inversion s85oc_v4.3` <https://www.bgc-jena.mpg.de/CarboScope/?ID=s>
+-   `CO2`: surface atmospheric CO2 mixing-ratio: `Jena CarboScope CO2 inversion sEXTocNEET_v4.3` <https://www.bgc-jena.mpg.de/CarboScope/?ID=s>
 
 ## Not documented
 
