@@ -1,6 +1,6 @@
-# Spring and Ilyina, 2019, manuscript in prep.
+# Spring and Ilyina, 2019, revised manuscript
 
-The paper is still in the process of writing and has not been submitted yet.
+The paper is still in the review process and has not been submitted yet.
 
 ## Aim
 
