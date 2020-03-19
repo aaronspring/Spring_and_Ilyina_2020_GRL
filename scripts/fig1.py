@@ -10,7 +10,6 @@ import xarray as xr
 from climpred.bootstrap import bootstrap_perfect_model
 from climpred.graphics import plot_bootstrapped_skill_over_leadyear
 from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
-
 from scripts.basics import (_get_path, labels, longname, path_paper,
                             post_global, shortname, units, yearmonmean)
 
@@ -252,6 +251,25 @@ mpl.rcParams['savefig.format'] = 'jpg'
 plot_fig2(bs_acc, bs_rmse)
 if savefig:
     plt.savefig(path_paper + 'Figure1_predictability_skill',
+                bbox_inches='tight')
+
+# extra plot for OSM 2020
+savefig = True
+fig, ax = plt.subplots(1, 3, figsize=(18, 3))
+plot_bootstrapped_skill_over_leadyear(bs_acc['CO2'].isel(
+    lead=slice(None, 7)), 95, plot_persistence=False, ax=ax[0])
+ax[0].set_ylabel('ACC [ ]')
+# ax[0].get_legend().remove()
+plot_bootstrapped_skill_over_leadyear(bs_rmse['CO2'].isel(
+    lead=slice(None, 7)), 95, plot_persistence=False, ax=ax[1])
+ax[1].set_ylabel('RMSE [ppm]')
+ax[1].get_legend().remove()
+plot_both_skill(bs_acc['CO2'], bs_rmse['CO2'],
+                ax=ax[2], unit='ppm', not_all=True, sig=95)
+ax[2].legend(loc='lower left', frameon=False)
+ax[2].set_xlabel('RMSE [ppm]')
+if savefig:
+    plt.savefig(path_paper + 'Figure_predictability_skill',
                 bbox_inches='tight')
 
 

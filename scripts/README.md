@@ -5,7 +5,7 @@ This repo was setup for scientists interested to reproduce our `Spring and Ilyin
 ## How to use
 
 -   Setup the `conda` environment as described by `requirements.txt`
--   Use the jupyter notebooks (`Spring_and_Ilyina_2019.ipynb`) to inspect results interactively; otherwise run `python *.py`
+-   Use the jupyter notebooks (`Spring_and_Ilyina_2019.ipynb`) to inspect results interactively; otherwise run `python *.py`. Note that the jupyter notebook was not updated with the changes due to revisions.
 -   First, run `diagnosed_fig1` to diagnose atmospheric CO2 contributions from land and ocean to plot ensemble timeseries as Figure 3c;
     then, run `fig_1` based on the produced results to create Figure 1.
 -   `fig_2_4` calculates and then plots Figures 2 & 4.

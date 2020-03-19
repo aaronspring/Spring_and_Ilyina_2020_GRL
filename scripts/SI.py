@@ -1,26 +1,28 @@
 import warnings
 from collections import OrderedDict
 
-import cartopy.crs as ccrs
-import cmocean
+import climpred
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-import PMMPIESM
 import xarray as xr
 from climpred.bootstrap import (DPP_threshold, bootstrap_perfect_model,
                                 varweighted_mean_period_threshold)
 from climpred.prediction import compute_perfect_model, compute_persistence
 from climpred.stats import DPP, autocorr, rm_trend, varweighted_mean_period
-from esm_analysis.composite import composite_analysis
-from esm_analysis.stats import rm_trend
 from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
-from PMMPIESM.plot import my_plot
-from xskillscore import pearson_r
-
+from pandas.plotting import autocorrelation_plot
 from scripts.basics import (_get_path, comply_climpred, labels, longname,
                             metric_dict, path_paper, post_global, post_ML,
                             shortname, units, yearmonmean)
+from xskillscore import pearson_r
+
+import cartopy.crs as ccrs
+import cmocean
+import PMMPIESM
+from esm_analysis.composite import composite_analysis
+from esm_analysis.stats import rm_trend
+from PMMPIESM.plot import my_plot
 
 warnings.filterwarnings("ignore")
 %matplotlib inline
@@ -396,3 +398,297 @@ for v in ['co2_flux']:  # , 'temp2', 'precip', 'co2_flux_cumsum']:
     if savefig:
         plt.savefig(path_paper + 'FigureSI_' + v + '_enso_composites')
     plt.show()
+
+
+# re-emergence enso check
+p = '/Users/aaron.spring/PhD_Thesis/PhD_scripts/180724_perfect_model_predictability/'
+ds = xr.open_dataset(p+'ds_period_area_ens_m_var.nc').sel(period='ym',
+                                                          area='Tropical_Pacific').rename({'year': 'time'})
+ds['time'] = np.arange(1, 1+ds.time.size)
+control = xr.open_dataset(
+    p+'control_period_area_var.nc').sel(period='ym', area='Tropical_Pacific').rename({'year': 'time'})
+control['time'] = np.arange(3000, 3000+control.time.size)
+v = 'nino34'
+plot_timeseries(ds[v], control[v])
+plt.xlim([3000, 3300])
+plt.ylabel('Nino 3.4 index [ ]')
+plt.title('Nino 3.4 timeseries')
+plt.ylim([-2, 2])
+plt.xlim([3140, 3280])
+plt.tight_layout()
+if savefig:
+    plt.savefig(path_paper + 'FigureSI_' + v + '_timeseries')
+
+
+for i in ds.ensemble.values:
+    ds['nino34'].isel(time=slice(None, 5)).std('member').sel(
+        ensemble=i).rename({'time': 'lead'}).plot(label=i)
+plt.legend(loc='upper right', fontsize='x-small')
+plt.title('Nino 3.4 member RMSE')
+plt.tight_layout()
+if savefig:
+    plt.savefig(path_paper + 'FigureSI_' + v + '_std')
+
+
+autocorrelation_plot(control['nino34'])
+plt.xlim([0, 10])
+plt.title('Nino 3.4')
+plt.tight_layout()
+if savefig:
+    plt.savefig(path_paper + 'FigureSI_' + v + '_ACF')
+
+area = '35S-35N'
+ds = xr.open_dataset(p+'ds_period_area_ens_m_var.nc').sel(period='ym',
+                                                          area=area).rename({'year': 'time'})
+ds['time'] = np.arange(1, 1+ds.time.size)
+control = xr.open_dataset(
+    p+'control_period_area_var.nc').sel(period='ym', area=area).rename({'year': 'time'})
+control['time'] = np.arange(3000, 3000+control.time.size)
+v = 'co2_flx_land'
+autocorrelation_plot(control[v])
+plt.xlim([0, 10])
+plt.title(f'Tropical {area} terrestrial CO$_2$ flux')
+plt.tight_layout()
+if savefig:
+    plt.savefig(path_paper + 'FigureSI_' + v + '_ACF')
+    plt.show()
+
+for i in ds.ensemble.values:
+    ds[v].isel(time=slice(None, 5)).std('member').sel(
+        ensemble=i).rename({'time': 'lead'}).plot(label=i)
+plt.legend(loc='upper right', fontsize='x-small')
+plt.title(f'Tropical {area} terrestrial CO$_2$ flux member RMSE')
+plt.ylabel(f'RMSE [{units["co2_flx_land"]}]')
+plt.tight_layout()
+if savefig:
+    plt.savefig(path_paper + 'FigureSI_' + v + '_std')
+
+
+ds = xr.open_dataset(p+'ds_period_area_ens_m_var.nc').sel(period='ym',
+                                                          area='Tropical_Pacific')
+control = xr.open_dataset(
+    p+'control_period_area_var.nc').sel(period='ym', area='Tropical_Pacific')
+ds = ds.rename({'ensemble': 'init', 'year': 'lead'})
+ds['lead'] = np.arange(1, 1+ds.lead.size)
+# subselect variables
+vars = ['nino12', 'nino3', 'nino4', 'nino34', 'co2_flx_land',
+        'tsurf', 'precip', 'co2_flx_resp', 'co2_flx_npp', 'atmco2']
+ds = ds[vars]
+control = control[vars]
+units = ['', '', '', '', 'PgC/yr',
+         'C', 'm', 'PgC/yr', 'PgC/yr', 'ppm']
+len(ds.data_vars)
+len(units)
+ds.dims
+s = compute_perfect_model(ds, ds, metric='rmse', dim='member')
+
+
+savefig = True
+fig, ax = plt.subplots(nrows=6, ncols=2, sharex=True, figsize=(15, 20))
+for i, axes in enumerate(ax.flatten()):
+    v = list(ds.data_vars)[i]
+    s[v].isel(lead=slice(None, 6)).plot.line(
+        x='lead', hue='init', ax=axes, add_legend=False)
+    s[v].isel(lead=slice(None, 6)).mean('init').plot(
+        ax=axes, add_legend=False, color='k', lw=3)
+    axes.set_title(v)
+    axes.set_ylabel(f'{v} [{units[i]}]')
+plt.subplots_adjust(top=.95)
+plt.suptitle('Skill for each initialization', fontsize='large')
+if savefig:
+    plt.savefig(path_paper + 'FigureSI_' + v + '_reemergence')
+
+# subselect anomalous years
+dsmm = xr.open_dataset(p+'ds_area_ens_m_var_mm.nc').sel(
+    area='Tropical_Pacific').rename({'ensemble': 'init', 'time': 'lead'})
+controlmm = xr.open_dataset(
+    p+'control_area_ens_m_var_mm.nc').sel(area='Tropical_Pacific')
+
+controlmm = controlmm[vars]
+controlmm = climpred.stats.rm_trend(controlmm)
+
+controlmm['time'] = xr.cftime_range(
+    start='3000-01', periods=controlmm.time.size, freq='M')
+
+
+control_init_month = xr.concat(
+    [controlmm.sel(time=str(j)).isel(time=0) for j in ds.init.values], 'init')
+control_init_month['init'] = dsmm.init
+
+cs = (control_init_month-controlmm.mean('time'))/controlmm.std('time')
+
+
+boundary = .5
+v = 'nino34'
+
+cs[v].plot()
+plt.axhline(y=boundary)
+plt.axhline(y=-boundary)
+
+
+anom_pos_nino34_init = cs.where(cs[v] > boundary, drop=True).init
+anom_pos_nino34_init.values
+anom_neg_nino34_init = cs.where(cs[v] < -boundary, drop=True).init
+anom_neg_nino34_init.values
+anom_neu_nino34_init = [
+    i for i in cs.init.values if i not in anom_pos_nino34_init if i not in anom_neg_nino34_init]
+anom_neu_nino34_init
+len(anom_pos_nino34_init), len(anom_neu_nino34_init), len(anom_neg_nino34_init)
+
+assert np.sum((len(anom_pos_nino34_init), len(
+    anom_neu_nino34_init), len(anom_neg_nino34_init))) == 12
+maxlead = 6
+sapn = compute_perfect_model(
+    ds.sel(init=anom_pos_nino34_init, lead=slice(None, maxlead)), ds, metric='pearson_r')
+saneun = compute_perfect_model(
+    ds.sel(init=anom_neu_nino34_init, lead=slice(None, maxlead)), ds, metric='pearson_r')
+sann = compute_perfect_model(
+    ds.sel(init=anom_neg_nino34_init, lead=slice(None, maxlead)), ds, metric='pearson_r')
+
+s = compute_perfect_model(
+    ds.isel(lead=slice(None, maxlead)), ds, metric='pearson_r')
+
+sa = xr.concat([s, sapn, saneun, sann], 'IC')
+sa['IC'] = ['mean', 'pos', 'neutral', 'neg']
+
+fig, ax = plt.subplots(nrows=5, ncols=2, sharex=True, figsize=(15, 20))
+for i, axes in enumerate(ax.flatten()):
+    va = list(ds.data_vars)[i]
+    sa[va].plot.line(
+        x='lead', hue='IC', ax=axes, add_legend=True)
+    axes.set_title(va)
+    axes.set_ylabel('ACC []')
+plt.subplots_adjust(top=.95)
+plt.suptitle(
+    f'ACC Skill for pos/neutral/neg {v} initial conditions anomaly', fontsize='large')
+if savefig:
+    plt.savefig(path_paper + 'FigureSI_ACC_reemergence_IC')
+
+
+v = 'CO2'
+# v='co2_flux'
+ds3d = xr.open_dataset(_get_path(varname=v)).rename(
+    {'ensemble': 'init', 'time': 'lead'})[v].isel(lead=slice(None, 6))
+control3d = xr.open_dataset(_get_path(varname=v, prefix='control'))[v]
+coarsen = 2
+if coarsen:
+    ds3d = ds3d.coarsen({'lon': coarsen, 'lat': coarsen}).sum()
+    control3d = control3d.coarsen({'lon': coarsen, 'lat': coarsen}).sum()
+# ds3d.isel(lead=2,init=2,member=3).plot()
+metric = 'pearson_r'
+s3d = compute_perfect_model(ds3d, control3d, metric=metric)
+# s3d.plot(col='lead')
+
+s3dapn = compute_perfect_model(
+    ds3d.sel(init=anom_pos_nino34_init.values), control3d, metric=metric)
+s3daneun = compute_perfect_model(
+    ds3d.sel(init=anom_neu_nino34_init), control3d, metric=metric)
+s3dann = compute_perfect_model(
+    ds3d.sel(init=anom_neg_nino34_init.values), control3d, metric=metric)
+sa3d = xr.concat([s3d, s3dapn, s3daneun, s3dann], 'IC')
+sa3d['IC'] = ['all', 'pos', 'neutral', 'neg']
+
+warnings.simplefilter("ignore")
+
+b = 100
+s3d = bootstrap_perfect_model(ds3d, control3d, metric=metric, bootstrap=b)
+s3dapn = bootstrap_perfect_model(
+    ds3d.sel(init=anom_pos_nino34_init.values), control3d, metric=metric, bootstrap=b)
+s3daneun = bootstrap_perfect_model(
+    ds3d.sel(init=anom_neu_nino34_init), control3d, metric=metric, bootstrap=b)
+s3dann = bootstrap_perfect_model(
+    ds3d.sel(init=anom_neg_nino34_init.values), control3d, metric=metric, bootstrap=b)
+
+sa3d.sel(kind='uninit', results='p').plot(col='lead', row='IC', vmax=.2)
+
+sa3d = xr.concat([s3d, s3dapn, s3daneun, s3dann], 'IC')
+sa3d['IC'] = ['all', 'pos', 'neutral', 'neg']
+skill = sa3d.sel(kind='init', results='skill').where(
+    sa3d.sel(results='p', kind='uninit') <= .05)
+#sa3d.plot(col='lead', row='IC', robust=True)
+#sa3d.name = 'CO$_2$ ACC'
+
+skill = sa3d.isel(lead=slice(None, 5)).where(sa3d > th)
+
+map_proj = ccrs.PlateCarree()
+th = .3
+p = skill.plot(transform=ccrs.PlateCarree(), col='lead', row='IC', robust=True,
+               subplot_kws={"projection": map_proj}, aspect=sa3d["lon"].size / sa3d["lat"].size)
+for ax in p.axes.flat:
+    ax.coastlines()
+    ax.set_aspect("equal")
+if savefig:
+    plt.savefig(
+        f'{path_paper}FigureS12_{v}_{metric.upper()}_3d_reemergence_IC')
+plt.show()
+
+
+dseq = ds3d.sel(lat=slice(5, -5)).mean(['lat', 'lon'])
+ceq = control3d.sel(lat=slice(5, -5)).mean(['lat', 'lon'])
+compute_perfect_model(eq, control, metric='pearson_r').plot()
+
+
+mpl.rcParams['savefig.format'] = 'jpg'
+# load terrestrial contributions
+# v='co2_flux'
+ds = xr.Dataset()
+control = xr.Dataset()
+for v in ['co2_flx_land', 'co2_flx_npp', 'co2_flx_resp', 'co2_flx_herb', 'co2_flx_fire']:
+    if v in ds.data_vars:
+        continue
+    ds3d = xr.open_dataset(_get_path(varname=v)).rename(
+        {'ensemble': 'init', 'time': 'lead'})[v].isel(lead=slice(None, 6))
+    control3d = xr.open_dataset(_get_path(varname=v, prefix='control'))[v]
+    coarsen = 2
+    if coarsen:
+        ds3d = ds3d.coarsen({'lon': coarsen, 'lat': coarsen}).sum()
+        control3d = control3d.coarsen({'lon': coarsen, 'lat': coarsen}).sum()
+    ds[v] = ds3d
+    control[v] = control3d
+
+ds.data_vars
+
+metric = 'rmse'
+
+s = compute_perfect_model(
+    ds, control, metric=metric)
+
+%time bs = bootstrap_perfect_model(ds, control, metric=metric, bootstrap=1000)
+
+bsm = bs.sel(kind='init', results='skill').where(
+    bs.sel(results='p', kind='uninit') <= .05)
+bsm.to_array().plot(col='lead', row='variable', robust=True)
+
+p = bsm.isel(lead=slice(None, 4)).to_array().plot(transform=ccrs.PlateCarree(), col='lead', row='variable', robust=True,
+                                                  subplot_kws={"projection": map_proj}, aspect=bsm["lon"].size / bsm["lat"].size, cbar_kwargs={'label': 'RMSE [gC m$^{-2}$ yr$^{-1}$]'})
+for ax in p.axes.flat:
+    ax.coastlines()
+    ax.set_aspect("equal")
+if savefig:
+    plt.savefig(f'{path_paper}FigureSI_{metric.upper()}_3d_skill_co2_flx_land')
+
+
+def ph_from_skill(skill):
+    ph = skill.argmin('lead', skipna=False)
+    ph = ph.where(ph != 0, np.nan)
+    ph_not_reached = (skill.notnull()).all('lead')
+    ph = ph.where(~ph_not_reached, other=skill['lead'].max())
+    return ph
+
+
+ph = ph_from_skill(bsm)
+
+ph.to_array().plot(col='variable', levels=[1, 2, 3, 4, 5, 6])
+
+
+p = ph.to_array().plot(transform=ccrs.PlateCarree(), col='variable', col_wrap=2, robust=True,
+                       subplot_kws={"projection": map_proj}, aspect=bsm["lon"].size / bsm["lat"].size, levels=[1, 2, 3, 4], cbar_kwargs={'label': 'Predictability Horizon [Years]'})
+for ax in p.axes.flat:
+    ax.coastlines()
+    ax.set_aspect("equal")
+if savefig:
+    plt.savefig(f'{path_paper}FigureSI_{metric.upper()}_3d_PH_co2_flx_land')
+
+
+path_paper
+savefig = True

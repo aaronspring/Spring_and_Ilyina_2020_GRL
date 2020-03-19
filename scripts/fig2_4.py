@@ -39,12 +39,13 @@ ds = xr.open_dataset(_get_path(v, prefix='ds'))
 ds, control = comply_climpred(ds, control)
 
 comparison = 'm2e'
+sig = 95
 psig = (100 - sig) / 100
 bootstrap = 1000
 
 metric = 'pearson_r'
-sig = 95
 v = 'co2_flux'
+v='CO2'
 metric = 'rmse'
 for metric in ['pearson_r', 'rmse']:
     for v in ['co2_flux', 'CO2']:
@@ -54,7 +55,7 @@ for metric in ['pearson_r', 'rmse']:
         control = xr.open_dataset(data_path + 'control_' + v + '_ym.nc').load()
         ds, control = comply_climpred(ds, control)
         # faster
-        ds = ds.isel(lead=slice(None, 10))
+        ds = ds.isel(lead=slice(None, 6)).isel(member=slice(1,None))
 
         bs = bootstrap_perfect_model(
             ds, control, metric=metric, comparison=comparison, bootstrap=bootstrap, sig=sig)
@@ -62,6 +63,9 @@ for metric in ['pearson_r', 'rmse']:
             bs.to_netcdf('_'.join(['results', varstring, 'ym', 'metric', metric, 'comparison',
                                    comparison, 'sig', str(sig), 'bootstrap', str(bootstrap)]) + '.nc')
 
+skill = bs.sel(results='skill', kind='init').where(
+    bs.sel(results='p', kind='uninit') <= psig)
+skill[v].plot(col='lead',col_wrap=4,yincrease=False)
 
 # plots
 bootstrap = 1000
