@@ -1,10 +1,12 @@
-# Spring and Ilyina, 2019, revised manuscript
+# Spring and Ilyina, 2020, GRL
 
-The paper is still in the review process.
+https://agupubs.onlinelibrary.wiley.com/doi/epdf/10.1029/2019GL085311
+
+
 
 ## Aim
 
-This repo is setup for scientists interested to reproduce our `Spring and Ilyina, 2019` paper. It contains scripts to reproduce the analysis and create the shown figures. It is inspired by `Irving (2015)` to enhance reproducibility in geosciences.
+This repo is setup for scientists interested to reproduce our `Spring and Ilyina, 2020` paper. It contains scripts to reproduce the analysis and create the shown figures. It is inspired by `Irving (2015)` to enhance reproducibility in geosciences.
 
 -   Irving, Damien. “A Minimum Standard for Publishing Computational Results in the Weather and Climate Sciences.” Bulletin of the American Meteorological Society 97, no. 7 (October 7, 2015): 1149–58. <https://doi.org/10/gf4wzh>.
 
@@ -31,4 +33,4 @@ The results in this paper were obtained using a number of different software pac
 
 ## Environment
 
-Dependencies (Packages installed) can be found in `requirements.txt` (conda list). Installed via conda (see setup `conda_info.txt`) and pip.
+Dependencies (Packages installed) can be found in `requirements.txt` (conda list in `requirements_final.txt`). Installed via conda (see setup `conda_info.txt`) and pip.
