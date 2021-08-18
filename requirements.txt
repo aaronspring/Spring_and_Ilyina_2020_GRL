@@ -1,0 +1,6 @@
+xarray
+climpred
+xskillscore
+cartopy
+matplotlib
+netcdf4
