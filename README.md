@@ -6,7 +6,7 @@ https://agupubs.onlinelibrary.wiley.com/doi/epdf/10.1029/2019GL085311
 
 ## Aim
 
-This repo is setup for scientists interested to reproduce our `Spring and Ilyina, 2019` paper. It contains scripts to reproduce the analysis and create the shown figures. It is inspired by `Irving (2015)` to enhance reproducibility in geosciences.
+This repo is setup for scientists interested to reproduce our `Spring and Ilyina, 2020` paper. It contains scripts to reproduce the analysis and create the shown figures. It is inspired by `Irving (2015)` to enhance reproducibility in geosciences.
 
 -   Irving, Damien. “A Minimum Standard for Publishing Computational Results in the Weather and Climate Sciences.” Bulletin of the American Meteorological Society 97, no. 7 (October 7, 2015): 1149–58. <https://doi.org/10/gf4wzh>.
 
